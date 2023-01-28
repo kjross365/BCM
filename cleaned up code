@@ -1,0 +1,145 @@
+#include <millisDelay.h>
+#include <SPI.h>
+#include <SD.h>
+#include "DHT.h"
+#include <Wire.h>
+#include "SparkFun_MMA8452Q.h"
+
+const int chipSelect = 53;
+#define DHTPIN 8
+#define DHTTYPE DHT22
+
+File myFile;
+millisDelay clock;
+MMA8452Q accel;
+DHT dht(DHTPIN, DHTTYPE);
+
+int seconds = 0;
+int minutes = 0;
+int hours = 0;
+
+void setup() {
+    Serial.begin(9600);
+    dht.begin();
+    Wire.begin();
+
+    while(!accel.begin()){
+        Serial.println("Accelerometer not connected!");
+        return;
+    }
+
+    Serial.print("Initializing SD card...");
+    if (!SD.begin()) {
+        Serial.println("initialization failed!");
+        return;
+    }
+    Serial.println("initialization done");
+
+    if (SD.exists("data.txt")) {
+        Serial.print("File exists, deleting...");
+        while (!SD.remove("data.txt")) {
+            ;
+        }
+        Serial.println("Deleted");
+    }
+
+    myFile = SD.open("data.txt", FILE_WRITE);
+    if (SD.exists("data.txt")) {
+        Serial.println("File created successfully");
+    } else {
+        Serial.println("File creation failed!");
+        return;
+    }
+    myFile.close();
+
+    myFile = SD.open("data.txt", FILE_WRITE);
+    if (myFile) {
+        Serial.print("Writing starter code...");
+        myFile.println("****//BCM//****");
+        myFile.println("|Time|AccX,Y,Z|Them|Humidity|");
+        myFile.close();
+        Serial.println("  done");
+    } else {
+        Serial.println("error opening data.txt");
+        return;
+    }
+
+    myFile = SD.open("data.txt");
+    if (myFile) {
+        Serial.println("Reading...");
+        while (myFile.available()) {
+            Serial.write(myFile.read());
+        }
+        myFile.close();
+        Serial.println("done");
+    } else {
+        Serial.println("error opening test.txt");
+        return;
+    }
+}
+
+void loop() {
+    if (!clock.isRunning()) {
+        clock.start(5000);
+    }
+    if (clock.justFinished()) {
+        seconds += 5;
+        if(seconds >= 60){
+            minutes += 1;
+            seconds = 0;
+        }
+        if(minutes >= 60){
+            hours += 1;
+            minutes = 0;
+        }
+        Serial.println("");
+        float x = accel.getCalculatedX();
+        float y = accel.getCalculatedY();
+        float z = accel.getCalculatedZ();
+
+        float humidity = dht.readHumidity();
+        float temperature = dht.readTemperature(true);
+
+        myFile = SD.open("data.txt", FILE_WRITE);
+        if (myFile) {
+            myFile.print("Time: ");
+            myFile.print(hours);
+            myFile.print(".");
+            myFile.print(minutes);
+            myFile.print(".");
+            myFile.print(seconds);
+            myFile.print(" Acc: ");
+            myFile.print(x);
+            myFile.print(", ");
+            myFile.print(y);
+            myFile.print(", ");
+            myFile.print(z);
+            myFile.print(" Temp: ");
+            myFile.print(temperature);
+            myFile.print(" Humidity: ");
+            myFile.println(humidity);
+            myFile.close();
+        } else {
+            Serial.println("error opening data.txt");
+        }
+        // Debugging
+        Serial.print("Time: ");
+        Serial.print(hours);
+        Serial.print(".");
+        Serial.print(minutes);
+        Serial.print(".");
+        Serial.print(seconds);
+        Serial.print(" Acc: ");
+        Serial.print(x);
+        Serial.print(", ");
+        Serial.print(y);
+        Serial.print(", ");
+        Serial.print(z);
+        Serial.print(" Temp: ");
+        Serial.print(temperature);
+        Serial.print(" Humidity: ");
+        Serial.println(humidity);
+        clock.start();
+    }
+}
+
